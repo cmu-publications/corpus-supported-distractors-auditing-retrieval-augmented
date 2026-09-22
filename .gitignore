@@ -1,0 +1,8 @@
+# Build caches and environments; the packager never copies them, this keeps them out later.
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/

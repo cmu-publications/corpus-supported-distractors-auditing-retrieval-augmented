@@ -1,0 +1,64 @@
+// Method diagram for the corpus-supported distractor study.
+// Drawn from the archived experiment package (experiments/code/{main,methods,models}.py),
+// not from the plan. Every box corresponds to a class or call in that code.
+digraph method {
+  rankdir=TB;
+  bgcolor="white";
+  ranksep=0.42;
+  nodesep=0.28;
+  newrank=true;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=12,
+        fillcolor="#FFFFFF", color="#555555", penwidth=1.3, margin="0.16,0.10"];
+  edge [fontname="Helvetica", fontsize=10, color="#555555", penwidth=1.2];
+
+  subgraph cluster_gen {
+    label="Shared generation pool, once per seed";
+    labeljust=l; fontname="Helvetica"; fontsize=12; color="#999999"; style=rounded;
+    corpus [label="Corpus\l13,461 passages\lSciQ supports + OBQA facts\l", fillcolor="#EAF2F8"];
+    retr   [label="Dense retrieval\lbge-small-en-v1.5, k = 1\l", fillcolor="#EAF2F8"];
+    gen    [label="Grounded generator\lQwen2.5-3B-Instruct, greedy\lstem, key, 3 distractors\l", fillcolor="#EAF2F8"];
+    ctrl   [label="Ungrounded control\lsame model, topic label only\lpassage withheld from the prompt\l", fillcolor="#FDEDE4"];
+  }
+
+  subgraph cluster_score {
+    label="Shared scoring pass";
+    labeljust=l; fontname="Helvetica"; fontsize=12; color="#999999"; style=rounded;
+    rewrite [label="Specificity rewrite of every stem"];
+    nli     [label="NLI tensors, nli-deberta-v3-base"];
+    judge   [label="Stem-conditioned judge\lP(option answers THIS stem | evidence)\l", penwidth=1.8];
+  }
+
+  subgraph cluster_arms {
+    label="Ten arms over the same scored pool";
+    labeljust=l; fontname="Helvetica"; fontsize=12; color="#999999"; style=rounded;
+    filt  [label="4 grounding filters\lper-option entailment, not-entail polarity,\lcontradiction polarity, LLM-judge faithfulness\lretain top 50%\l", fillcolor="#FBE9E1"];
+    rer   [label="2 overgenerate-and-rerank arms\lby contradiction, by key similarity\lretain 100%\l", fillcolor="#E4F3EE"];
+    null  [label="Retention-matched random drop\lsame 50% attrition, endpoint-blind\l", fillcolor="#F0F0F0"];
+    pos   [label="Planted positive control\lone slot overwritten with a key-equivalent\l", fillcolor="#F0F0F0"];
+    unf   [label="Unfiltered grounded pool\lreference prevalence\l", fillcolor="#F0F0F0"];
+    {rank=same; filt; rer;}
+    {rank=same; null; pos; unf;}
+  }
+
+  audit [label="Distractor-level audit\lflag a slot only when the judge supports it under\lBOTH the original stem and its specificity rewrite\l", fillcolor="#EAF2F8"];
+  endp  [label="Endpoint: distractor-caused CSD rate, per arm, per seed", penwidth=2.0];
+
+  corpus -> retr;
+  retr -> gen [label="  evidence P"];
+  retr -> ctrl [label="  evidence kept\l  for scoring only\l", style=dashed];
+  gen -> rewrite;
+  ctrl -> rewrite;
+  rewrite -> nli;
+  nli -> judge;
+  judge -> filt;
+  judge -> rer;
+  judge -> null;
+  judge -> pos;
+  judge -> unf;
+  filt -> audit;
+  rer -> audit;
+  null -> audit;
+  pos -> audit;
+  unf -> audit;
+  audit -> endp;
+}
